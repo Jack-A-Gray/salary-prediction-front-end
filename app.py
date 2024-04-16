@@ -1,92 +1,62 @@
 import flask
-from flask import request, render_template, redirect, url_for
+from flask import request
 from flask_cors import CORS
-import requests
-# import json
+import json
+import joblib
 
 app = flask.Flask(__name__)
-app.config["SECRET_KEY"] = "seasdad(*2sffcra01^23sdet"
 
 CORS(app)
 
-# Get this URL from the Azure Overview page of your API web app
-api_url = "http://127.0.0.1:5000" # base url for API endpoints
-
-# main index page route
+# main index page (root route)
 @app.route("/")
-def index():
-    return render_template("index.html")
+def home():
+    return "<h1>Salary Prediction API</h1><p>BAIS:3300 - Digital Product Development</p><p>Mike Colbert</p>"
 
-
-@app.route("/predict", methods=["GET", "POST"])
+# predict route
+@app.route("/predict", methods=["POST"])
 def predict():
-    print("in predict route")
-    if request.method == "GET":
-        return render_template("index.html")
+    print("inside predict")
+    
+    # load the model
+    model = joblib.load("salary_predict_model.ml")
 
-    if request.method == "POST":
-        print("in post method")
-        #### capture data from the form
-        form = request.form  # declare a form variable to capture the form data
-        print("extracted form data")
-        print(form)
-        # extract user data from the form and save it in a python variable
-        age = form["age"]
-        print(age)
-        gender = form["gender"]
-        country = form["country"]
-        highest_deg = form["highest_deg"]
-        coding_exp = form["coding_exp"]
-        title = form["title"]
-        company_size = form["company_size"]
+    # get values from json
+    prediction_variables = request.get_json()
+    
+    print(prediction_variables)
+    
+    # store the json values into python variables
+    age = prediction_variables["age"]
+    gender = prediction_variables["gender"]
+    country = prediction_variables["country"]
+    highest_deg = prediction_variables["highest_deg"]
+    coding_exp = prediction_variables["coding_exp"]
+    title = prediction_variables["title"]
+    company_size = prediction_variables["company_size"]
 
-        print(age, gender, country, highest_deg, coding_exp, title, company_size)
+    print(age, gender, country, highest_deg, coding_exp, title, company_size)
 
-        # Create dictionary of form data
-        salary_predict_variables = {
-            "age": age,
-            "gender": gender,
-            "country": country,
-            "highest_deg": highest_deg,
-            "coding_exp": coding_exp,
-            "title": title,
-            "company_size": company_size,
-        }
+    # make a prediction using the python variables
+    # ensure the variables are in the same order as the model was trained on
+    salary_prediction = model.predict(
+        [
+            [
+                int(age),
+                int(gender),
+                int(country),
+                int(highest_deg),
+                int(coding_exp),
+                int(title),
+                int(company_size),
+            ]
+        ]
+    )
+    
+    print(salary_prediction)
 
-        # Send data to API as JSON
-        url = api_url + f"/predict"
-        print(url)
-        headers = {"Content-Type": "application/json"}
-        print(headers)
+    # convert NumPy array to a Python list and extract the first value
+    salary_prediction_value = salary_prediction.tolist()[0]
 
-        # get a response from the api
-        try:
-            # Send data to API as JSON and get a response
-            response = requests.post(
-                url, json=salary_predict_variables, headers=headers
-            )
-            
-            # Check if the response was successful (status code 200)
-            if response.status_code == 200:
-                # Decode the JSON response
-                prediction = response.json()
-
-                print(prediction)  # Print the decoded JSON for debugging
-                
-                # Pass the decoded JSON response to the HTML page
-                return render_template("index.html", prediction=prediction)
-
-            else:
-                # Handle responses with error status codes
-                print(
-                    f"Error: Received response with status code {response.status_code}"
-                )
-                error_message = f"Failed to get prediction, server responded with status code: {response.status_code}"
-                return render_template("index.html", error=error_message)
-
-        except requests.exceptions.RequestException as e:
-            # Handle network-related errors (e.g., DNS failure, refused connection, etc)
-            print(f"Request failed: {e}")
-            return render_template(
-                "index.html", error="Failed to make request to prediction API."
-            )
+    # return the result as a JSON response
+    return json.dumps({"predicted_salary": salary_prediction_value})
